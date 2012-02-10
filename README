@@ -1,0 +1,17 @@
+This is a complete mess, but
+
+build heap.so, and LD_PRELOAD it.
+
+The wrapped calls to malloc, etc, will check that things haven't been
+freed, and do some integrity checking on the blocks.
+
+The program will always dump core on exit if hdmp.so is preloaded. This
+is intentional. The hdmp executable can then grovel around he core file
+to print leaked memory, etc. You can also attach to the core with gdb,
+and use it in conjunction with the hdmp output.
+
+Grep for HDMP_ to see how environment variables affect
+things. HDMP_STACKDEPTH is useful.
+
+Currently needs frame-pointer based stack unwinding, so is not useful
+on x86_64

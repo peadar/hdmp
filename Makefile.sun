@@ -1,0 +1,14 @@
+#CFLAGS += -I. -g -fpic -D_GNU_SOURCE -DPTHREADS=1
+CFLAGS += -I. -g -KPIC -D_GNU_SOURCE -DPTHREADS=1 -DSunOS -D__sparc__
+CC=cc
+
+all: heap.so hdmp
+
+heap.so: heap.o flush.o
+	gcc -G -o $@ heap.o flush.o
+
+hdmp: hdmp.o
+	gcc -g -o $@ hdmp.o
+
+clean:
+	rm -f core.* *.core *.o hdmp heap.so

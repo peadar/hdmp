@@ -1,0 +1,22 @@
+CFLAGS += -I. -g -fpic -D_GNU_SOURCE -DPTHREADS=1  -Wall -Wno-parentheses
+CC=gcc
+
+all: heap.so hdmp it prof.so t
+
+heap.so: heap.o 
+	$(CC) -shared -o $@ heap.o -ldl
+
+prof.so: prof.o elf.o
+	$(CC) -nostdlib -shared -o $@ prof.o elf.o -ldl -lc -lpthread
+
+hdmp: hdmp.o elf.o
+	$(CC) -g -o $@ hdmp.o elf.o
+
+it: it.o elf.o
+	$(CC) -g -o $@ it.o elf.o
+
+t: t.o
+	$(CC) -o $@ -g t.o -lpthread
+
+clean:
+	rm -f core.* *.core *.o hdmp heap.so prof.so

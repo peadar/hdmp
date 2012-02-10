@@ -1,0 +1,12 @@
+CFLAGS += -I. -g -fpic -D_GNU_SOURCE -DPTHREADS=1
+
+all: heap.so hdmp
+
+heap.so: heap.o 
+	cc -shared -o $@ heap.o -lc_r
+
+hdmp: hdmp.o
+	cc -g -o $@ hdmp.o
+
+clean:
+	rm -f core.* *.core *.o hdmp heap.so

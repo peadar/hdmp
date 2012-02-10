@@ -1,0 +1,42 @@
+.\" $Id: sr.1,v 1.2 2009-04-15 18:01:49 peadar Exp $
+.\"
+
+.mso www.tmac
+.Dd Jan 21, 2009
+.Dt HDMP 1
+.Os VXP
+.Sh NAME
+.Nm hdmp
+.Nd malloc Heap Debugger
+.Sh SYNOPSIS
+env
+.Ar LD_PRELOAD=heap.so
+.Ar cmd
+...
+.Nm
+.Op Fl e Ar exclude-list
+.Op Fl i Ar include-list
+.Op Fl d Ar dump-size
+.Op Fl p Ar prefix
+.Ar executable
+.Ar core
+.Sh DESCRIPTION
+Examine post-mortem output of "heap.so" instrumented process.
+.Pp
+If the
+.Ar heap.so
+library is preloaded for a process, it will intercept calls to the
+standard C heap management routines, and store call-site information
+for later analysis. When such a process exits normally,
+.Ar heap.so
+will attempt to make that process dump core (and abnormal terminations
+will often dump core, obviously)
+.Pp
+hdmp takes the executable and core images, and prints details of the
+contents of the heap at the time the core was generated. Details presented
+for each block of allocated memory include the stack trace at the time
+of allocation, the size and location of the block, amongst other things.
+Note that you can run "gdb" or any symbolic debugger on the core also,
+and correlate the pointer values in the
+.Nm
+output with the debugging session
