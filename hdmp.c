@@ -714,11 +714,26 @@ procFindRDebugAddr(struct Process *proc)
 static int
 procSetupMem(struct Process *proc, const char *core)
 {
-        proc->coreImage = malloc(sizeof *proc->coreImage);
-    if (elf32LoadObjectFile(core, proc->coreImage)) {
-            free(proc->coreImage);
+    struct ElfObject *obj = proc->coreImage = malloc(sizeof *proc->coreImage);
+    if (elf32LoadObjectFile(core, obj)) {
+        free(obj);
+        proc->coreImage = 0;
         return -1;
-        }
+    }
+
+    off_t furthest = 0;
+    int i;
+    for (i = 0; i < obj->elfHeader.e_phnum; i++) {
+        off_t readCount;
+        struct Segment *seg = &obj->programHeaders[i];
+        Elf32_Phdr *hdr = &seg->phdr;
+        if (hdr->p_type != PT_LOAD)
+            continue;
+        if (hdr->p_offset + hdr->p_filesz > furthest)
+            furthest = hdr->p_offset + hdr->p_filesz;
+    }
+    fprintf(stderr, "(core %s should be at least %ld bytes)\n", core, (long)furthest);
+
     return 0;
 }
 
