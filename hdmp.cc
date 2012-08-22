@@ -1,22 +1,3 @@
-
-/*
- * Peter Edwards, Feb 2002.
- *
- * Derived from my version of pstack for FreeBSD.
- *
- * This is a new version of the old heap debugger, that works with corefiles
- * rather than the proprietary heap format. Advantages of this approach:
- *  shared libraries are much easier to grok: we can show symbolic and stab
- *  information for the shared libraries, which is becoming much more
- *  important as we use them more and more.
- *
- *  we can show the content of the allocated memory, and you can debug the
- *  executable/core in parallel with the heap dump
- *
- *  we don't need to jump through hoops to avoid dumping core in the target,
- *  because that's our end goal.
- */
-
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/param.h>
@@ -43,39 +24,21 @@
 #include "heap.h"
 
 struct ListedSymbol {
+    const Elf_Sym sym;
     const struct ElfObject *obj;
-    const char *name;
-    const Elf_Sym *sym;
-    struct ListedSymbol *next;
+    std::string name;
 };
 
-struct ListedSymbol *excludeList;
-struct ListedSymbol *includeList;
-struct ListedSymbol *vtables;
+std::list<ListedSymbol> excludeList;
+std::list<ListedSymbol> includeList;
+std::list<ListedSymbol> vtables;
 
-struct Process {
-    pid_t pid;
-    int mem; /* File handle to /proc/<pid>/mem */
-    struct ElfObject *objectList;
-    struct ElfObject *execImage;
-    struct ElfObject *coreImage;
-    int      threadCount;
-};
-
-static void     printBlocks(struct Process *proc, struct memdesc_list *list, enum memstate, int, int *, int *, int *, int *);
-static Elf_Addr   procFindRDebugAddr(struct Process *proc);
-static int  procOpen(const char *exeName, const char *coreFile, struct Process **procp);
-static int  procReadMem(struct Process *proc, void *ptr,
-            Elf_Addr remoteAddr, size_t size);
-static void procAddElfObject(struct Process *proc,
-            struct ElfObject *obj, Elf_Addr base);
-static void procFree(struct Process *proc);
-static void procFreeObjects(struct Process *proc);
-static void procLoadSharedObjects(struct Process *proc);
-static int  procSetupMem(struct Process *proc, const char *core);
+static void printBlocks(struct Process *proc
+        , struct memdesc_list *list
+        , enum memstate
+        , int, int *, int *, int *, int *);
 static int  usage(void);
 static void printStack(struct Process *proc, struct stackframe *stack);
-
 static const char *gLibPrefix = "";
 
 static int

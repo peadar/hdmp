@@ -95,7 +95,6 @@ static free_t real_free;
 static realloc_t real_realloc;
 static calloc_t real_calloc;
 static malloc_t real_valloc;
-static void *signalTrampoline;
 
 static inline struct memdesc *
 alloc_hdr()
@@ -489,7 +488,7 @@ getstacktrace(struct stackframe *ents, int max_ents)
 	if (!newBp || newBp <= bp) /* Make sure we are making progress. */
 	    break;
 	ip = (caddr_t)bp[1];
-	if (!ip || ip == (caddr_t)0xbaadf00d || ip == signalTrampoline)
+	if (!ip || ip == (caddr_t)0xbaadf00d)
 	    break;
 	if (abs(newBp - bp) > 65536)
 	    break; // Huge stack frame or new bp is higher in memory than old

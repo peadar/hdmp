@@ -116,7 +116,6 @@ elf32LoadObject(FILE *file, struct ElfObject *obj)
             || eHdr->e_ident[EI_CLASS] != ELFCLASS32
             || eHdr->e_ident[EI_VERSION] > EV_CURRENT) {
         fprintf(stderr, "not an ELF image");
-        free(obj);
         return (-1);
     }
 
