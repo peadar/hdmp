@@ -54,7 +54,7 @@ static int
 findFunction(const void *a, const void *b)
 {
     const struct FunctionInfo *fi = *(struct FunctionInfo **)b;
-    Elf32_Addr addr = (Elf32_Addr)a;
+    Elf_Addr addr = (Elf_Addr)a;
     if (fi->elfSym->st_value > addr)
         return -1;
     if (fi->elfSym->st_value + fi->elfSym->st_size <= addr)
@@ -99,7 +99,7 @@ int
 elf32LoadObject(FILE *file, struct ElfObject *obj)
 {
     int i;
-    Elf32_Ehdr *eHdr;
+    Elf_Ehdr *eHdr;
     struct Section *sHdrs;
     struct Segment *pHdrs;
     struct Section *section;
@@ -128,7 +128,7 @@ elf32LoadObject(FILE *file, struct ElfObject *obj)
     for (off = eHdr->e_phoff, i = 0; i < eHdr->e_phnum; i++) {
         struct Segment *seg = &pHdrs[i];
         seg->data = 0;
-        Elf32_Phdr *phdr = &seg->phdr;
+        Elf_Phdr *phdr = &seg->phdr;
         fseeko(obj->file, off, SEEK_SET);
         ssize_t rc = fread(phdr, sizeof *phdr, 1, file);
         if (rc != 1)
@@ -149,7 +149,7 @@ elf32LoadObject(FILE *file, struct ElfObject *obj)
     for (off = eHdr->e_shoff, i = 0; i < eHdr->e_shnum; i++) {
         fseeko(file, off, SEEK_SET);
         sHdrs[i].data = 0;
-        ssize_t rc = fread(&sHdrs[i].shdr, sizeof (Elf32_Shdr), 1, file);
+        ssize_t rc = fread(&sHdrs[i].shdr, sizeof (Elf_Shdr), 1, file);
         if (rc != 1)
             abort();
         off += eHdr->e_shentsize;
@@ -180,18 +180,18 @@ elf32LoadObject(FILE *file, struct ElfObject *obj)
  */
 int
 elf32FindSymbolByName(struct ElfObject *o, const char *name,
-                    const Elf32_Sym **symp, const char **namep)
+                    const Elf_Sym **symp, const char **namep)
 {
     struct Section *shdrs, *hash, *syms;
     const char *symStrings;
-    const Elf32_Sym *sym;
-    Elf32_Word nbucket;
-    Elf32_Word nchain;
-    Elf32_Word i;
+    const Elf_Sym *sym;
+    Elf_Word nbucket;
+    Elf_Word nchain;
+    Elf_Word i;
 
-    const Elf32_Word *buckets;
-    const Elf32_Word *chains;
-    const Elf32_Word *hashData;
+    const Elf_Word *buckets;
+    const Elf_Word *chains;
+    const Elf_Word *hashData;
     unsigned long hashv;
 
     shdrs = o->sectionHeaders;
@@ -248,14 +248,14 @@ elf32SymbolIterateSection(struct ElfObject *o, struct Section *section, symiterf
 {
     struct Section *shdrs;
     const char *symStrings;
-    const Elf32_Sym *sym;
+    const Elf_Sym *sym;
     int symCount, i;
     shdrs = o->sectionHeaders;
 
     sym = elf32MapSection(o, section);
     symStrings = elf32MapSection(o, &shdrs[section->shdr.sh_link]);
 
-    symCount = section->shdr.sh_size / sizeof (Elf32_Sym);
+    symCount = section->shdr.sh_size / sizeof (Elf_Sym);
     for (i = 0; i < symCount; i++)
         cb(state, o, section, sym + i, symStrings + sym[i].st_name);
 }
@@ -278,17 +278,17 @@ elf32FindSectionByName(struct ElfObject *obj, const char *name, struct Section *
 
 int
 elf32LinearSymSearch(struct ElfObject *o, struct Section *section,
-                    const char *name, const Elf32_Sym **symp,
+                    const char *name, const Elf_Sym **symp,
                     const char **namep)
 {
     struct Section *shdrs;
     const char *symStrings;
-    const Elf32_Sym *sym;
+    const Elf_Sym *sym;
     int symCount, i;
     shdrs = o->sectionHeaders;
     sym = elf32MapSection(o, section);
     symStrings = elf32MapSection(o, &shdrs[section->shdr.sh_link]);
-    symCount = section->shdr.sh_size / sizeof (Elf32_Sym);
+    symCount = section->shdr.sh_size / sizeof (Elf_Sym);
     for (i = 0; i < symCount; i++) {
         if (!strcmp(symStrings + sym[i].st_name, name)) {
             if (namep)
@@ -306,7 +306,7 @@ elf32ProcessFunctions(struct ElfObject *obj)
     struct FunctionInfo *si;
     int section;
     const struct stab *lineNumbers = 0, *function = 0, *args = 0;
-    const Elf32_Sym *sym;
+    const Elf_Sym *sym;
 
     struct Section *symtab, *shdrs;
     static char *symsections[] = {
@@ -333,7 +333,7 @@ elf32ProcessFunctions(struct ElfObject *obj)
 
         symStrings = elf32MapSection(obj, &shdrs[symtab->shdr.sh_link]);
         sym = elf32MapSection(obj, symtab);
-        symCount = symtab->shdr.sh_size / sizeof(Elf32_Sym);
+        symCount = symtab->shdr.sh_size / sizeof(Elf_Sym);
 
         for (j = 0; j < symCount; j++) {
             if (ELF32_ST_TYPE(sym[j].st_info) != STT_FUNC)
@@ -437,7 +437,7 @@ elf32ProcessFunctions(struct ElfObject *obj)
 }
 
 int
-elf32FindFunction(struct ElfObject *obj, Elf32_Addr loc,
+elf32FindFunction(struct ElfObject *obj, Elf_Addr loc,
     struct FunctionInfo **f)
 {
     void *p;
@@ -479,7 +479,7 @@ void
 elf32DumpSection(FILE *f, struct ElfObject *obj, struct Section *hdr,
 			int indent)
 {
-    const Elf32_Sym * sym, *esym;
+    const Elf_Sym * sym, *esym;
     int i;
     const char *symStrings, *padding = pad(indent);
 
@@ -525,7 +525,7 @@ elf32DumpSection(FILE *f, struct ElfObject *obj, struct Section *hdr,
     case SHT_DYNSYM:
             symStrings = elf32MapSection(obj, &obj->sectionHeaders[hdr->shdr.sh_link]);
             sym = elf32MapSection(obj, hdr);
-            esym = (const Elf32_Sym *) ((char *)sym + hdr->shdr.sh_size);
+            esym = (const Elf_Sym *) ((char *)sym + hdr->shdr.sh_size);
 
             for (i = 0; sym < esym; i++) {
                 printf("%ssymbol %d:\n", padding, i);
@@ -540,7 +540,7 @@ elf32DumpSection(FILE *f, struct ElfObject *obj, struct Section *hdr,
  * Debug output of an ELF32 program segment
  */
 void
-elf32DumpProgramSegment(FILE *f, struct ElfObject *obj, const Elf32_Phdr *hdr,
+elf32DumpProgramSegment(FILE *f, struct ElfObject *obj, const Elf_Phdr *hdr,
 			int indent)
 {
     const char *padding = pad(indent);
@@ -581,7 +581,7 @@ elf32DumpProgramSegment(FILE *f, struct ElfObject *obj, const Elf32_Phdr *hdr,
  * Debug output of an Elf32 symbol.
  */
 void
-elf32DumpSymbol(FILE *f, const Elf32_Sym * sym, const char *strings, int indent)
+elf32DumpSymbol(FILE *f, const Elf_Sym * sym, const char *strings, int indent)
 {
 	static const char *bindingNames[] = {
 		"STB_LOCAL",
@@ -647,7 +647,7 @@ elf32DumpSymbol(FILE *f, const Elf32_Sym * sym, const char *strings, int indent)
  */
 
 void
-elf32DumpDynamic(FILE *f, const Elf32_Dyn *dyn, int indent)
+elf32DumpDynamic(FILE *f, const Elf_Dyn *dyn, int indent)
 {
 	const char *padding = pad(indent);
 	static const char *tagNames[] = {
@@ -793,8 +793,8 @@ elf32DumpObject(FILE *f, struct ElfObject *obj, int indent)
 	    "Modesto",
 	    "OpenBSD"
 	};
-	const Elf32_Ehdr *ehdr = &obj->elfHeader;
-	const Elf32_Dyn *dyn, *edyn;
+	const Elf_Ehdr *ehdr = &obj->elfHeader;
+	const Elf_Dyn *dyn, *edyn;
 
 	const char *padding = pad(indent);
 
@@ -818,7 +818,7 @@ elf32DumpObject(FILE *f, struct ElfObject *obj, int indent)
 
         if (obj->dynamic) {
             dyn = elf32MapSegment(obj, obj->dynamic);
-            edyn = (const Elf32_Dyn *) ((char *)dyn + obj->dynamic->phdr.p_filesz);
+            edyn = (const Elf_Dyn *) ((char *)dyn + obj->dynamic->phdr.p_filesz);
             while (dyn < edyn) {
                 printf("%sdynamic entry\n", padding - 4);
                 elf32DumpDynamic(f, dyn, indent + 8);
@@ -887,10 +887,10 @@ hexdump(FILE *f, int indent, const char *p, int len)
  * Find the mapped object within which "addr" lies
  */
 int
-elf32FindObject(struct ElfObject *objlist, Elf32_Addr addr, struct ElfObject **objp)
+elf32FindObject(struct ElfObject *objlist, Elf_Addr addr, struct ElfObject **objp)
 {
-    const Elf32_Phdr *phdr;
-    Elf32_Addr segAddr;
+    const Elf_Phdr *phdr;
+    Elf_Addr segAddr;
     int i;
 
     for (; objlist; objlist = objlist->next) {
@@ -938,13 +938,13 @@ elf32MapSection(struct ElfObject *obj, struct Section *section)
         return section->data;
 
     // Find what segment this section is in.
-    Elf32_Addr secStart = section->shdr.sh_offset;
-    Elf32_Addr secEnd = secStart + section->shdr.sh_size;
+    Elf_Addr secStart = section->shdr.sh_offset;
+    Elf_Addr secEnd = secStart + section->shdr.sh_size;
     size_t i;
 
     for (i = 0; i < obj->elfHeader.e_phnum; i++) {
         struct Segment *seg = &obj->programHeaders[i];
-        Elf32_Phdr *phdr = &seg->phdr;
+        Elf_Phdr *phdr = &seg->phdr;
         if (phdr->p_offset <= secStart && secEnd <= phdr->p_offset + phdr->p_filesz) {
             section->owns = 0;
             return section->data = elf32MapSegment(obj, seg) + secStart - phdr->p_offset;

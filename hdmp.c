@@ -45,7 +45,7 @@
 struct ListedSymbol {
     const struct ElfObject *obj;
     const char *name;
-    const Elf32_Sym *sym;
+    const Elf_Sym *sym;
     struct ListedSymbol *next;
 };
 
@@ -63,12 +63,12 @@ struct Process {
 };
 
 static void     printBlocks(struct Process *proc, struct memdesc_list *list, enum memstate, int, int *, int *, int *, int *);
-static Elf32_Addr   procFindRDebugAddr(struct Process *proc);
+static Elf_Addr   procFindRDebugAddr(struct Process *proc);
 static int  procOpen(const char *exeName, const char *coreFile, struct Process **procp);
 static int  procReadMem(struct Process *proc, void *ptr,
-            Elf32_Addr remoteAddr, size_t size);
+            Elf_Addr remoteAddr, size_t size);
 static void procAddElfObject(struct Process *proc,
-            struct ElfObject *obj, Elf32_Addr base);
+            struct ElfObject *obj, Elf_Addr base);
 static void procFree(struct Process *proc);
 static void procFreeObjects(struct Process *proc);
 static void procLoadSharedObjects(struct Process *proc);
@@ -92,7 +92,6 @@ globmatchR(const char *pattern, const char *name)
                 if (*name == 0) // exhuasted name without finding a match
                     return 0;
             }
-
         default:
             if (*name != *pattern)
                 return 0;
@@ -114,7 +113,7 @@ struct MatchState {
 };
 
 static void
-matchSymbol(void *vstate, const struct ElfObject *obj, struct Section *hdr, const Elf32_Sym *sym, const char *name)
+matchSymbol(void *vstate, const struct ElfObject *obj, struct Section *hdr, const Elf_Sym *sym, const char *name)
 {
     struct MatchState *state = (struct MatchState *)vstate;
     struct ListedSymbol *lsym;
@@ -177,10 +176,10 @@ getSymbolList(struct Process *proc, const char *filename)
 }
 
 static int
-onList(struct Process *proc, Elf32_Addr addr, struct ListedSymbol *list)
+onList(struct Process *proc, Elf_Addr addr, struct ListedSymbol *list)
 {
     while (list) {
-        Elf32_Addr symStart = list->obj->baseAddr + list->sym->st_value;
+        Elf_Addr symStart = list->obj->baseAddr + list->sym->st_value;
         if (symStart <= addr && symStart + list->sym->st_size > addr)
             return 1;
         list = list->next;
@@ -191,7 +190,7 @@ onList(struct Process *proc, Elf32_Addr addr, struct ListedSymbol *list)
 
 
 struct Symcounter {
-    Elf32_Addr addr;
+    Elf_Addr addr;
     const char *name;
     unsigned count;
     struct ListedSymbol *sym;
@@ -208,7 +207,7 @@ sortSymcountAddr(const void *lv, const void *rv)
 int
 findSymByAddr(const void *keyv,  const void *valuev)
 {
-    Elf32_Addr key = *(uint32_t *)keyv;
+    Elf_Addr key = *(uint32_t *)keyv;
     struct Symcounter *value = (struct Symcounter *)valuev;
     return key - value->addr;
 }
@@ -224,8 +223,8 @@ struct hdbg_info info;
 int
 main(int argc, char **argv)
 {
-    Elf32_Word listAddr;
-    const Elf32_Sym *sym;
+    Elf_Word listAddr;
+    const Elf_Sym *sym;
     struct ElfObject *obj;
     const char *includeListName = 0, *excludeListName = 0;
     struct Process *proc;
@@ -318,7 +317,7 @@ main(int argc, char **argv)
             for (i = 0; i < core->elfHeader.e_phnum; i++) {
                 off_t readCount;
                 struct Segment *seg = &core->programHeaders[i];
-                Elf32_Phdr *hdr = &seg->phdr;
+                Elf_Phdr *hdr = &seg->phdr;
                 if (hdr->p_type != PT_LOAD)
                     continue;
                 fseeko(core->file, hdr->p_offset, SEEK_SET);
@@ -389,10 +388,10 @@ printStack(struct Process *proc, struct stackframe *stack)
     int i;
     for (i = 0; i < info.maxframes; i++) {
         const char *fileName;
-        Elf32_Word off = 0;
+        Elf_Word off = 0;
         int j;
         struct stackframe *frame = stack + i;
-        Elf32_Addr funcAddr = (Elf32_Addr)frame->ip;
+        Elf_Addr funcAddr = (Elf_Addr)frame->ip;
         const struct stab *line;
         const struct stab *args;
         char *colon;
@@ -465,7 +464,7 @@ printBlocks(struct Process *proc, struct memdesc_list *list, enum memstate state
     char *dataBuf;
     size_t hdrsize;
 
-    Elf32_Addr addr;
+    Elf_Addr addr;
     if (dataLen)
         dataBuf = malloc(dataLen);
     else
@@ -476,24 +475,24 @@ printBlocks(struct Process *proc, struct memdesc_list *list, enum memstate state
     hdrsize = sizeof *hdr + info.maxframes * sizeof (struct stackframe);
     hdr = malloc(hdrsize);
 
-    for (*totalBlocks = *totalBytes = 0, addr = (Elf32_Addr)list->tqh_first;
+    for (*totalBlocks = *totalBytes = 0, addr = (Elf_Addr)list->tqh_first;
         addr;
-        addr = (Elf32_Addr)hdr->node.tqe_next) {
+        addr = (Elf_Addr)hdr->node.tqe_next) {
         enum memstate headState, tailState;
 
         procReadMem(proc, hdr, addr, hdrsize);
-        procReadMem(proc, &headState, (Elf32_Addr)(&hdr->data->state), sizeof headState);
-        procReadMem(proc, &tailState, (Elf32_Addr)(hdr->data + 1) + hdr->len, sizeof headState);
+        procReadMem(proc, &headState, (Elf_Addr)(&hdr->data->state), sizeof headState);
+        procReadMem(proc, &tailState, (Elf_Addr)(hdr->data + 1) + hdr->len, sizeof headState);
 
         ++*totalBlocks;
         *totalBytes += hdr->len;
 
         bad = tailState != state || headState != state;
         if (!bad && (excludeList || includeList)) {
-            Elf32_Addr funcAddr = 0;
+            Elf_Addr funcAddr = 0;
             for (i = 0; i < info.maxframes; i++) {
                 struct stackframe *frame = hdr->stack + i;
-                funcAddr = (Elf32_Addr)frame->ip;
+                funcAddr = (Elf_Addr)frame->ip;
                 if (!funcAddr || (excludeList && onList(proc,
                     funcAddr, excludeList)) || includeList &&
                     !onList(proc, funcAddr, includeList))
@@ -585,7 +584,7 @@ procOpen(const char *exeName, const char *coreFile, struct Process **procp)
  * Read data from the target's address space.
  */
 static int
-procReadMem(struct Process *proc, void *ptr, Elf32_Addr remoteAddr, size_t size)
+procReadMem(struct Process *proc, void *ptr, Elf_Addr remoteAddr, size_t size)
 {
     if (!proc->coreImage) {
         if (pread(proc->mem, ptr, size, remoteAddr) == size)
@@ -598,7 +597,7 @@ procReadMem(struct Process *proc, void *ptr, Elf32_Addr remoteAddr, size_t size)
             off_t objectOffset = remoteAddr - obj->baseAddr;
             for (i = 0; i < obj->elfHeader.e_phnum; i++) {
                 struct Segment *seg = &obj->programHeaders[i];
-                Elf32_Phdr *hdr = &seg->phdr;
+                Elf_Phdr *hdr = &seg->phdr;
                 if (hdr->p_type == PT_LOAD && hdr->p_vaddr <= objectOffset
                         && hdr->p_vaddr + hdr->p_filesz > objectOffset) {
                     fseeko(obj->file, hdr->p_offset + (objectOffset - hdr->p_vaddr), SEEK_SET);
@@ -620,7 +619,7 @@ procReadMem(struct Process *proc, void *ptr, Elf32_Addr remoteAddr, size_t size)
  * Add ELF object description into process.
  */
 static void
-procAddElfObject(struct Process *proc, struct ElfObject *obj, Elf32_Addr base)
+procAddElfObject(struct Process *proc, struct ElfObject *obj, Elf_Addr base)
 {
     obj->next = proc->objectList;
     obj->baseAddr = base;
@@ -635,7 +634,7 @@ procLoadSharedObjects(struct Process *proc)
 {
     struct r_debug rDebug;
     struct link_map map;
-    Elf32_Addr mapAddr, lAddr, r_debug_addr;
+    Elf_Addr mapAddr, lAddr, r_debug_addr;
     char path[PATH_MAX];
     int prefixLen;
     struct ElfObject *obj;
@@ -651,14 +650,14 @@ procLoadSharedObjects(struct Process *proc)
     strcpy(path, gLibPrefix);
     path[prefixLen] = 0;
 
-    for (mapAddr = (Elf32_Addr)rDebug.r_map; mapAddr;
-        mapAddr = (Elf32_Addr)map.l_next) {
+    for (mapAddr = (Elf_Addr)rDebug.r_map; mapAddr;
+        mapAddr = (Elf_Addr)map.l_next) {
 
         if (procReadMem(proc, &map, mapAddr, sizeof(map)) != 0)
             continue;
 
         /* Read the path to the file */
-        if (procReadMem(proc, path + prefixLen, (Elf32_Addr)map.l_name,
+        if (procReadMem(proc, path + prefixLen, (Elf_Addr)map.l_name,
             PATH_MAX - prefixLen) || path[prefixLen] == '\0') {
             fprintf(stderr, "cannot get library name @ %p\n", (void *)(intptr_t)map.l_addr);
             continue;
@@ -671,7 +670,7 @@ procLoadSharedObjects(struct Process *proc)
          * object with a load address lower than the executable's
          * entry point is either broken, or is the executable.
          */
-        lAddr = (Elf32_Addr)map.l_addr;
+        lAddr = (Elf_Addr)map.l_addr;
         //if (lAddr <= proc->execImage->elfHeader->e_entry)
         //  continue;
 
@@ -686,20 +685,20 @@ procLoadSharedObjects(struct Process *proc)
 /*
  * Grab various bits of information from the run-time linker.
  */
-static Elf32_Addr
+static Elf_Addr
 procFindRDebugAddr(struct Process *proc)
 {
     struct ElfObject *obj;
-    Elf32_Dyn dyno;
-    const Elf32_Dyn *dynp;
-    Elf32_Addr dyn;
+    Elf_Dyn dyno;
+    const Elf_Dyn *dynp;
+    Elf_Addr dyn;
 
     obj = proc->execImage;
     /* Find DT_DEBUG in the process's dynamic section. */
     if (obj->dynamic) {
         const char *data = elf32MapSegment(obj, obj->dynamic);
-        for (dyn = 0; dyn < obj->dynamic->phdr.p_filesz; dyn += sizeof(Elf32_Dyn)) {
-            dynp = (const Elf32_Dyn *)(data + dyn);
+        for (dyn = 0; dyn < obj->dynamic->phdr.p_filesz; dyn += sizeof(Elf_Dyn)) {
+            dynp = (const Elf_Dyn *)(data + dyn);
             if (dynp->d_tag == DT_DEBUG &&
                         procReadMem(proc, &dyno, obj->dynamic->phdr.p_vaddr + dyn, sizeof(dyno)) == 0)
                 return dyno.d_un.d_ptr;
@@ -726,7 +725,7 @@ procSetupMem(struct Process *proc, const char *core)
     for (i = 0; i < obj->elfHeader.e_phnum; i++) {
         off_t readCount;
         struct Segment *seg = &obj->programHeaders[i];
-        Elf32_Phdr *hdr = &seg->phdr;
+        Elf_Phdr *hdr = &seg->phdr;
         if (hdr->p_type != PT_LOAD)
             continue;
         if (hdr->p_offset + hdr->p_filesz > furthest)

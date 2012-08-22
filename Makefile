@@ -1,4 +1,14 @@
-CFLAGS += -I. -g -fpic -Wall -Wno-parentheses -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+ELF_BITS ?= 32
+
+ifeq ($(ELF_BITS),32)
+CFLAGS += -m32
+endif
+
+CFLAGS += -I. -g -fpic -Wall -Wno-parentheses \
+    -D_LARGEFILE_SOURCE \
+    -D_FILE_OFFSET_BITS=64 \
+    -D_GNU_SOURCE \
+    -DELF_BITS=$(ELF_BITS)
 CC=gcc
 
 TARGETS=heap.so hdmp it prof.so

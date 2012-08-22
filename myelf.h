@@ -1,5 +1,45 @@
+
+#ifndef __FreeBSD__
+
+#define ElfTypeForBits(type, bits, uscore) typedef Elf##bits##uscore##type Elf##uscore##type ;
+#define ElfType2(type, bits) ElfTypeForBits(type, bits, _)
+#define ElfType(type) ElfType2(type, ELF_BITS)
+
+typedef Elf32_Nhdr Elf32_Note;
+typedef Elf64_Nhdr Elf64_Note;
+
+ElfType(Addr)
+ElfType(Ehdr)
+ElfType(Phdr)
+ElfType(Shdr)
+ElfType(Sym)
+ElfType(Dyn)
+ElfType(Word)
+ElfType(Note)
+ElfType(auxv_t)
+ElfType(Off)
+
+#if ELF_BITS==64
+#define ELF_ST_TYPE ELF64_ST_TYPE
+#define IS_ELF(a) 1
+#endif
+
+#if ELF_BITS==32
+#define ELF_ST_TYPE ELF32_ST_TYPE
+#define IS_ELF(a) 1
+#endif
+
+static inline size_t roundup2(size_t val, size_t align)
+{
+    return val + (align - (val % align)) % align;
+}
+
+#endif
+
+
+
 struct FunctionInfo {
-    const Elf32_Sym *elfSym;
+    const Elf_Sym *elfSym;
     const char *elfName;
     int stabStringOffset;
     const struct stab *lineNumbers;
@@ -11,12 +51,12 @@ struct FunctionInfo {
 };
 
 struct Segment {
-    Elf32_Phdr phdr;
+    Elf_Phdr phdr;
     void *data; // data == 0 => non-mapped segment.
 };
 
 struct Section {
-    Elf32_Shdr shdr;
+    Elf_Shdr shdr;
     void *data; // data == 0 => non-mapped segment.
     int owns; // this section owns its own data (not contained in a segment)
 };
@@ -25,9 +65,9 @@ struct ElfObject {
         FILE *file;
         struct ElfObject *next;
 
-	Elf32_Ehdr elfHeader;
+	Elf_Ehdr elfHeader;
 
-	Elf32_Addr	baseAddr; /* For loaded objects */
+	Elf_Addr	baseAddr; /* For loaded objects */
 	char		*fileName;
 	char		*baseName;
 	struct Segment *programHeaders;
@@ -126,23 +166,23 @@ enum StabType {
 int elf32LoadObjectFile(const char *fileName, struct ElfObject *obj);
 int elf32LoadObject(FILE *f, struct ElfObject *obj);
 
-typedef void (*symiterfunc_t)(void *, const struct ElfObject *, struct Section *, const Elf32_Sym *, const char *);
+typedef void (*symiterfunc_t)(void *, const struct ElfObject *, struct Section *, const Elf_Sym *, const char *);
 void elf32SymbolIterate(struct ElfObject *o, symiterfunc_t cb, void *state);
 void elf32SymbolIterateSection(struct ElfObject *o, struct Section *, symiterfunc_t cb, void *state);
 
-int elf32FindSymbolByName(struct ElfObject *o, const char *name, const Elf32_Sym **symp, const char **namep);
+int elf32FindSymbolByName(struct ElfObject *o, const char *name, const Elf_Sym **symp, const char **namep);
 int elf32FindSectionByName(struct ElfObject *obj, const char *name, struct Section **shdrp);
-int elf32LinearSymSearch(struct ElfObject *o, struct Section *hdr, const char *name, const Elf32_Sym **symp, const char **namep);
+int elf32LinearSymSearch(struct ElfObject *o, struct Section *hdr, const char *name, const Elf_Sym **symp, const char **namep);
 void elf32ProcessFunctions(struct ElfObject *obj);
-int elf32FindFunction(struct ElfObject *obj, Elf32_Addr loc, struct FunctionInfo **f);
+int elf32FindFunction(struct ElfObject *obj, Elf_Addr loc, struct FunctionInfo **f);
 int elf32UnloadObject(struct ElfObject *obj);
 int elf32UnloadObjectFile(struct ElfObject *obj);
 void elf32DumpSection(FILE *f, struct ElfObject *obj, struct Section *hdr, int indent);
-void elf32DumpProgramSegment(FILE *f, struct ElfObject *obj, const Elf32_Phdr *hdr, int indent);
-void elf32DumpSymbol(FILE *f, const Elf32_Sym * sym, const char *strings, int indent);
-void elf32DumpDynamic(FILE *f, const Elf32_Dyn *dyn, int indent);
-int elf32FindSymbolByName(struct ElfObject *o, const char *name, const Elf32_Sym **symp, const char **namep);
-int elf32FindObject(struct ElfObject *list, Elf32_Addr addr, struct ElfObject **objp);
+void elf32DumpProgramSegment(FILE *f, struct ElfObject *obj, const Elf_Phdr *hdr, int indent);
+void elf32DumpSymbol(FILE *f, const Elf_Sym * sym, const char *strings, int indent);
+void elf32DumpDynamic(FILE *f, const Elf_Dyn *dyn, int indent);
+int elf32FindSymbolByName(struct ElfObject *o, const char *name, const Elf_Sym **symp, const char **namep);
+int elf32FindObject(struct ElfObject *list, Elf_Addr addr, struct ElfObject **objp);
 void elf32DumpObject(FILE *f, struct ElfObject *obj, int indent);
 
 void *elf32MapSegment(struct ElfObject *, struct Segment *);

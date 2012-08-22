@@ -261,9 +261,6 @@ main(int argc, char *argv[])
     struct sigaction act;
     sigset_t sigs;
 
-    struct link_map *map;
-    map = _r_debug.r_map;
-
     elf = malloc(sizeof *elf);
     int rc = elf32LoadObjectFile(argv[0], elf);
     if (rc != 0)
