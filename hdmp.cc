@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <array>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/procfs.h>
@@ -19,14 +20,18 @@
 #include <string.h>
 #include <sysexits.h>
 #include <unistd.h>
-#include "myelf.h"
+#include "elfinfo.h"
+#include "procinfo.h"
 
 #include "heap.h"
 
 struct ListedSymbol {
-    const Elf_Sym sym;
-    const struct ElfObject *obj;
+    Elf_Sym sym;
+    const ElfObject *obj;
     std::string name;
+    ListedSymbol()
+    {
+    }
 };
 
 std::list<ListedSymbol> excludeList;
@@ -65,59 +70,47 @@ globmatchR(const char *pattern, const char *name)
 }
 
 static int
-globmatch(const char *pattern, const char *name)
+globmatch(std::string pattern, std::string name)
 {
-    return globmatchR(pattern, name);
-}
-
-struct MatchState {
-    struct ListedSymbol *list;
-    const char *symname;
-};
-
-static void
-matchSymbol(void *vstate, const struct ElfObject *obj, struct Section *hdr, const Elf_Sym *sym, const char *name)
-{
-    struct MatchState *state = (struct MatchState *)vstate;
-    struct ListedSymbol *lsym;
-
-    if (sym->st_value == 0 || !globmatch(state->symname, name))
-        return;
-
-    lsym = malloc(sizeof *lsym);
-    lsym->next = state->list;
-    lsym->obj = obj;
-    lsym->name = name;
-    lsym->sym = sym;
-    state->list = lsym;
+    return globmatchR(pattern.c_str(), name.c_str());
 }
 
 static void
-getSymbolWildcard(struct Process *proc, struct ListedSymbol **sym, const char *lib, const char *func)
+getSymbolWildcard(Process &proc, std::list<ListedSymbol> list, std::string lib, std::string func)
 {
-    struct ElfObject *obj;
-        struct MatchState state;
-        state.symname = func;
-        state.list = *sym;
-        for (obj = proc->objectList; obj; obj = obj->next)
-                if (globmatch(lib, obj->fileName))
-                        elf32SymbolIterate(obj, matchSymbol, (void *)&state);
-        *sym = state.list;
+    static std::array<const char *, 2> sections = { ".dynsym", ".symtab" };
+    for (auto obj : proc.objectList) { // for each object
+        if (globmatch(lib, obj->io.describe())) { // if the object name matches
+            for (auto section : sections) { // for each symbol-containing section
+                Elf_Shdr *hdr = obj->findSectionByName(section);
+                if (hdr) {
+                    for (auto info : SymbolSection(obj, hdr)) { // for each symbol in that section
+                        if (info.first.st_value != 0 && globmatch(func, info.second)) { // if tha name matches
+                            ListedSymbol lsym;
+                            lsym.obj = obj;
+                            lsym.name = info.second;
+                            lsym.sym = info.first;
+                            list.push_back(lsym);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
-static struct ListedSymbol *
-getSymbolList(struct Process *proc, const char *filename)
+void
+getSymbolList(Process &proc, std::list<ListedSymbol> &list, const char *filename)
 {
     FILE *f = fopen(filename, "r");
     char *func;
     char lib[1024];
     int lineNumber;
     char *p;
-        struct ListedSymbol *list = 0;
 
     if (!f) {
         fprintf(stderr, "cannot open symbol list file %s\n", filename);
-        return 0;
+        return;
     }
 
     for (lineNumber = 1; fgets(lib, sizeof lib, f) != 0; lineNumber++) {
@@ -132,25 +125,22 @@ getSymbolList(struct Process *proc, const char *filename)
         if ((p = strchr(func, '\n')) != 0)
             *p = 0;
         /* Now find the library, and the symbol */
-                getSymbolWildcard(proc, &list, lib, func);
+
+        getSymbolWildcard(proc, list, lib, func);
     }
     fclose(f);
-    return list;
 }
 
 static int
-onList(struct Process *proc, Elf_Addr addr, struct ListedSymbol *list)
+onList(struct Process *proc, Elf_Addr addr, std::list<ListedSymbol *> &list)
 {
-    while (list) {
-        Elf_Addr symStart = list->obj->baseAddr + list->sym->st_value;
-        if (symStart <= addr && symStart + list->sym->st_size > addr)
+    for (auto item : list) {
+        Elf_Addr symStart = item->obj->base + item->sym.st_value;
+        if (symStart <= addr && symStart + item->sym.st_size > addr)
             return 1;
-        list = list->next;
     }
     return 0;
 }
-
-
 
 struct Symcounter {
     Elf_Addr addr;
@@ -190,7 +180,6 @@ main(int argc, char **argv)
     const Elf_Sym *sym;
     struct ElfObject *obj;
     const char *includeListName = 0, *excludeListName = 0;
-    struct Process *proc;
     int dovirts = 0, dovirtprint = 0;
     int c, dataLen = 0, badBlocks, excludedBlocks, totalBytes, totalBlocks;
         struct ListedSymbol *s;
@@ -219,14 +208,6 @@ main(int argc, char **argv)
                 virtpattern = optarg;
             dovirts = 1;
             break;
-        case 'D': {
-            struct ElfObject o;
-            if (elf32LoadObjectFile(optarg, &o) == 0) {
-                elf32DumpObject(stdout, &o, 0);
-                elf32UnloadObjectFile(&o);
-            }
-            return 0;
-                }
         default:
             return usage();
         }
@@ -235,14 +216,14 @@ main(int argc, char **argv)
     if (argc - optind != 2 || excludeListName && includeListName)
         return usage();
 
-    if (procOpen(argv[optind], argv[optind + 1], &proc) != 0)
-        return -1;
+    FileReader exeFile(argv[optind]);
+    FileReader coreFile(argv[optind +1]);
+    CoreProcess proc(exeFile, coreFile);
 
-    if (excludeListName) {
-        excludeList = getSymbolList(proc, excludeListName);
-    } else if (includeListName) {
-        includeList = getSymbolList(proc, includeListName);
-    }
+    if (excludeListName)
+        getSymbolList(proc, excludeList, excludeListName);
+    else if (includeListName)
+        getSymbolList(proc, includeList, includeListName);
 
     if (dovirts) {
         size_t vtcount = 0;
@@ -251,9 +232,7 @@ main(int argc, char **argv)
         union val val;
 
         struct Symcounter *table, *found;
-
-        getSymbolWildcard(proc, &vtables, "*", virtpattern);
-
+        getSymbolWildcard(proc, vtables, "*", virtpattern);
 
         for (s = vtables; s; s = s->next)
             vtcount++;

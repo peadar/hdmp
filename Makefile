@@ -5,7 +5,7 @@ COMFLAGS += -m32
 LDFLAGS += -m32
 endif
 
-COMFLAGS += -I. -g -fpic -Wall -Wno-parentheses \
+COMFLAGS += -I../pstack -g -fpic -Wall -Wno-parentheses \
     -D_LARGEFILE_SOURCE \
     -D_FILE_OFFSET_BITS=64 \
     -D_GNU_SOURCE \
@@ -15,7 +15,7 @@ LDFLAGS += -g
 
 CC=gcc
 CFLAGS += $(COMFLAGS)
-CXXFLAGS += $(COMFLAGS)
+CXXFLAGS += $(COMFLAGS) -std=c++0x
 
 TARGETS=heap.so hdmp it prof.so
 all: $(TARGETS)
