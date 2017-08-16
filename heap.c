@@ -125,7 +125,7 @@ free_hdr(struct memdesc *hdr)
 static void
 set_state(struct memdesc *hdr, enum memstate state)
 {
-    int i;
+    size_t i;
     char *p = (char *)(hdr->data + 1) + hdr->len;
     char *q = (char *)&state;
 
@@ -138,7 +138,7 @@ set_state(struct memdesc *hdr, enum memstate state)
 static enum memstate
 get_state(struct memdesc *hdr)
 {
-    int i;
+    size_t i;
     enum memstate state;
 
     char *p = (char *)(hdr->data + 1) + hdr->len;
@@ -190,7 +190,7 @@ buffer_malloc(size_t amount)
 }
 
 static void
-buffer_free()
+buffer_free(void *_)
 {
 }
 
@@ -247,11 +247,11 @@ dbg_init()
     LOCK(&heap_lock);
     UNLOCK(&heap_lock);
 
-    real_valloc = dlsym(libc_handle, "valloc");
-    real_realloc = dlsym(libc_handle, "realloc");
-    real_calloc = dlsym(libc_handle, "calloc");
-    real_free = dlsym(libc_handle, "free");
-    real_malloc = dlsym(libc_handle, "malloc");
+    real_valloc = (malloc_t) dlsym(libc_handle, "valloc");
+    real_realloc = (realloc_t) dlsym(libc_handle, "realloc");
+    real_calloc = (calloc_t) dlsym(libc_handle, "calloc");
+    real_free = (free_t) dlsym(libc_handle, "free");
+    real_malloc = (malloc_t) dlsym(libc_handle, "malloc");
     startup = 0;
 }
 
@@ -263,7 +263,7 @@ hdmpInit()
     fprintf(stderr, "heap debugger enabled: use hdmp <executable> <core> to examine post-mortem output\n");
     fprintf(stderr, "debug level=%d, stack frames=%d,  freelist size=%d, fill memory? %d, buffer memory used=%d\n", 
         hdbg.level,
-        hdbg.maxframes,
+        (int)hdbg.maxframes,
         hdbg.freelistmax,
         hdbg.doFill,
         malloc_total);

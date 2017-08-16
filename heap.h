@@ -1,4 +1,6 @@
 /* $Id: heap.h,v 1.5.2.1 2002/05/31 15:40:03 petere Exp $ */
+#include <stddef.h>
+#include "queue.h"
 
 #ifndef heap_h_guard
 #define heap_h_guard
@@ -17,8 +19,8 @@ TAILQ_HEAD(memdesc_list, memdesc);
 typedef TAILQ_ENTRY(memdesc) memdesc_node;
 
 struct stackframe {
-    caddr_t ip;
-    caddr_t *args[DBGH_FRAMEARGS];
+    void * ip;
+    void **args[DBGH_FRAMEARGS];
 };
 
 /*
@@ -38,7 +40,7 @@ struct guard {
 struct memdesc {
     memdesc_node node; /* Links to allocated, recently free, or unused descriptor list */
     unsigned long serial; /* Incrementing serial number for alloc/free operation */
-    int len; /* User-requested length of allocated block. */
+    size_t len; /* User-requested length of allocated block. */
     struct guard *data; /* Points to data for this descriptor */
     struct stackframe stack[1];
 };
